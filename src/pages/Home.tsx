@@ -1,8 +1,10 @@
-import MyProfile from "./MyProfile.tsx";
+import MyProfile from "./MyProfile";
+import type { Account } from "../types";
 
-export default function Home({ account, onSolo, refreshKey }: {
-    account: { address: string } | null;
+export default function Home({ account, onSolo, onLeaderboard, refreshKey }: {
+    account: Account | null;
     onSolo: () => void;
+    onLeaderboard: () => void;
     refreshKey?: number;
 }) {
     return (
@@ -16,7 +18,11 @@ export default function Home({ account, onSolo, refreshKey }: {
                 <div className="home-modes">
                     <div className="mode-card" onClick={onSolo}>
                         <div className="mode-card-title">Solo</div>
-                        <div className="mode-card-desc">Best of 3 vs computer — results saved locally</div>
+                        <div className="mode-card-desc">Best of 3 vs computer — results saved on-chain via Bulletin</div>
+                    </div>
+                    <div className="mode-card" onClick={onLeaderboard}>
+                        <div className="mode-card-title">Leaderboard</div>
+                        <div className="mode-card-desc">View the on-chain leaderboard for registered players</div>
                     </div>
                 </div>
             </div>

@@ -1,20 +1,33 @@
 import { useState, useEffect } from "react";
 import { isInsideContainerSync } from "@parity/product-sdk-host";
-import { useSignerState, signerManager, short } from "./utils.ts";
-import Home from "./pages/Home.tsx";
-import SoloGame from "./pages/SoloGame.tsx";
+import { useSignerState, signerManager, disableHostProductAccount, short } from "./utils";
+import Home from "./pages/Home";
+import SoloGame from "./pages/SoloGame";
+import Leaderboard from "./pages/Leaderboard";
 
-type View = { page: "home" } | { page: "solo" };
+type View = { page: "home" } | { page: "solo" } | { page: "leaderboard" };
 
 export default function App() {
     const { status, accounts, selectedAccount, error } = useSignerState();
    
     useEffect(() => {
-        signerManager.connect(isInsideContainerSync() ? "host" : "dev").then(result => {
+        const connectHost = async () => {
+            const result = await signerManager.connect(isInsideContainerSync() ? "host" : "dev");
             if (result.ok && result.value.length > 0) {
                 signerManager.selectAccount(result.value[0].address);
+                return;
             }
-        });
+
+            if (isInsideContainerSync()) {
+                disableHostProductAccount();
+                const fallback = await signerManager.connect("host");
+                if (fallback.ok && fallback.value.length > 0) {
+                    signerManager.selectAccount(fallback.value[0].address);
+                }
+            }
+        };
+
+        connectHost();
     }, []);
 
     const account = selectedAccount;
@@ -62,6 +75,7 @@ export default function App() {
                     account={account}
                     refreshKey={refreshKey}
                     onSolo={() => setView({ page: "solo" })}
+                    onLeaderboard={() => setView({ page: "leaderboard" })}
                 />
             )}
 
@@ -71,6 +85,14 @@ export default function App() {
 
             {view.page === "solo" && !account && (
                 <div className="empty">Please connect a wallet to play.</div>
+            )}
+
+            {view.page === "leaderboard" && account && (
+                <Leaderboard account={account} />
+            )}
+
+            {view.page === "leaderboard" && !account && (
+                <div className="empty">Please connect a wallet to view the leaderboard.</div>
             )}
         </>
     );

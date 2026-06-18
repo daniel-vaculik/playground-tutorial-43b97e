@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { loadPlayerData, short } from "../utils.ts";
-import type { PlayerData, Move } from "../types.ts";
+import { loadPlayerData, short } from "../utils";
+import type { Account, PlayerData, Move } from "../types";
 
 const MOVE_EMOJI: Record<Move, string> = { rock: "🪨", paper: "📄", scissors: "\u2702\uFE0F" };
 
 export default function MyProfile({ account, refreshKey }: {
-    account: { address: string };
+    account: Account;
     refreshKey?: number;
 }) {
     const [data, setData] = useState<PlayerData | null>(null);

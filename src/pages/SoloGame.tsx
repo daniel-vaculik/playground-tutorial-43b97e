@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
-import type { Move, Round, RoundResult } from "../types.ts";
+import type { Account, Move, Round, RoundResult } from "../types";
 import {
     determineWinner, pointsForResult, randomMove,
-    appendGame, getBulletinCid,
-} from "../utils.ts";
+    saveGameResult, getBulletinCid,
+} from "../utils";
 
-const MOVE_EMOJI: Record<Move, string> = { rock: "🪨", paper: "📄", scissors: "\u2702\uFE0F" };
+const MOVE_EMOJI: Record<Move, string> = { rock: "🪨", paper: "📄", scissors: "✂️" };
 const RESULT_TEXT: Record<RoundResult, string> = { win: "You win!", loss: "You lose!", draw: "Draw!" };
 const BEST_OF = 3;
 
 export default function SoloGame({ account, onDone }: {
-    account: { address: string };
+    account: Account;
     onDone: () => void;
 }) {
     const [rounds, setRounds] = useState<Round[]>([]);
@@ -55,7 +55,7 @@ export default function SoloGame({ account, onDone }: {
                 const finalResult: RoundResult = w > l ? "win" : l > w ? "loss" : "draw";
                 const finalPts = pointsForResult(finalResult);
                 setSaving(true);
-                appendGame(account.address, {
+                saveGameResult(account, {
                     rounds: newRounds,
                     result: finalResult,
                     pointsChange: finalPts,

@@ -1,3 +1,17 @@
+export interface Account {
+    address: string;
+    h160Address: `0x${string}`;
+    getSigner: () => unknown;
+    name?: string | null;
+    source?: string;
+}
+
+export interface LeaderboardEntry {
+    address: string;
+    cid: string;
+    points: number;
+}
+
 export type Move = "rock" | "paper" | "scissors";
 
 export type RoundResult = "win" | "loss" | "draw";

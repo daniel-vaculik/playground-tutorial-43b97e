@@ -1,0 +1,7 @@
+{
+  "registry": "https://paseo-asset-hub-next-registry.polkadot.io",
+  "contracts": {
+    "@rps/leaderboard": {}
+  },
+  "dependencies": {}
+}
