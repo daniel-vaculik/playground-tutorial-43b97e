@@ -1,0 +1,152 @@
+name: Deploy to Summit (playground-tutorial.dot)
+
+# Publishes this tutorial as the canonical `playground-tutorial.dot` seed app on
+# the Web3 Summit network. One run does all three legs:
+#   1. build the Vite SPA  (bun run build -> dist/)
+#   2. upload to Summit Bulletin + bind the DotNS name playground-tutorial.dot
+#   3. publish it (moddable) into the @w3s/playground-registry so it shows in the
+#      playground Apps grid and attendees can `playground mod playground-tutorial.dot`.
+#
+# Signing account: secrets.MNEMONIC = the canonical PCF deployer 5Fk8… — it is
+# Bulletin-authorized on Summit, owns (or will register) playground-tutorial.dot,
+# and is the playground-registry sudo, so it may publish. See
+# .github/DEPLOY_SUMMIT.md for the full account/secret/cost notes.
+#
+# The single-app `playground deploy` command runs fully non-interactively
+# (no Ink TUI) when --signer/--domain/--buildDir/--playground/--contracts are all
+# specified (isFullySpecified -> runHeadless). That is the contract this job relies on.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to the playground registry (moddable). Off = host + bind name only."
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    # Day-2 redeploys: only when app content actually changes. The first
+    # (greenfield) deploy is best run via workflow_dispatch so it can be watched.
+    paths:
+      - "src/**"
+      - "index.html"
+      - "quests.json"
+      - "package.json"
+      - "bun.lock"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - ".github/workflows/deploy-summit.yml"
+
+concurrency:
+  # One signer (5Fk8) signs serially on-chain — never run two deploys at once.
+  group: deploy-summit-playground-tutorial
+  cancel-in-progress: false
+
+env:
+  # DotNS label bound on Summit (19 chars >= 9 => "open" PoP class, no PoP-Full gate).
+  DOMAIN: playground-tutorial
+  # Tag the registry card filters on (one of playground-cli's PLAYGROUND_TAGS).
+  PLAYGROUND_TAG: gaming
+  # playground-cli carries the `--env summit` wiring AND resolves the @w3s CDM
+  # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
+  # It is a PRIVATE package (not on npm) distributed as paritytech release
+  # binaries that DON'T carry the Summit cdm-env — so we build the PCF fork from
+  # source at a pinned commit. Bump REF as the fork advances; the only hard
+  # requirement is that its cdm-env stays >= 2.1.0 (w3s address populated).
+  PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
+  # Synced fork main (PCF playground-cli#8): env-aware publish, native Summit
+  # descriptors, builder-identity-gate operator opt-out.
+  PLAYGROUND_CLI_REF: 5b5559b2b61140e7ad99abb643bee7303f402bcb
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout playground-tutorial
+        uses: actions/checkout@v4
+        # `--moddable` records `git remote get-url origin` as the public source
+        # repo. actions/checkout sets origin to this repo's https URL, which is
+        # exactly what we want published.
+
+      - name: Guard — MNEMONIC must be set
+        env:
+          MNEMONIC: ${{ secrets.MNEMONIC }}
+        run: |
+          if [ -z "$MNEMONIC" ]; then
+            echo "::error::secrets.MNEMONIC is not set. Add the 5Fk8 deployer mnemonic as a repo secret (see .github/DEPLOY_SUMMIT.md)."
+            exit 1
+          fi
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm (for building playground-cli)
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.5.2"
+
+      - name: Setup Bun (app build + playground-cli runtime)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # ── App leg: build the SPA from the committed bun.lock ──────────────────
+      - name: Install app deps
+        run: bun install --frozen-lockfile
+
+      - name: Build SPA
+        run: bun run build # tsc -b && vite build -> ./dist (relative base, IPFS-ready)
+
+      - name: Verify build output
+        run: test -f dist/index.html || (echo "::error::dist/index.html missing after build" && exit 1)
+
+      # ── Tooling leg: build the Summit-capable playground CLI from the fork ───
+      - name: Checkout playground-cli (PCF fork, pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PLAYGROUND_CLI_REPO }}
+          ref: ${{ env.PLAYGROUND_CLI_REF }}
+          path: .playground-cli
+
+      - name: Build playground CLI binary
+        working-directory: .playground-cli
+        run: |
+          pnpm install --frozen-lockfile
+          # Compile a self-contained binary (bundles deps incl. cdm-env w3s).
+          bun build --compile src/index.ts --outfile "$RUNNER_TEMP/playground"
+          "$RUNNER_TEMP/playground" --version
+
+      - name: Sanity — Summit CDM registry resolves (w3s populated)
+        working-directory: .playground-cli
+        run: |
+          node --input-type=module -e "import {getRegistryAddress} from '@polkadot-community-foundation/cdm-env'; const a=getRegistryAddress('w3s'); if(!a){console.error('::error::cdm-env w3s registry address is empty — Summit publish would fail'); process.exit(1)} console.log('w3s CDM registry =', a)"
+
+      # ── Deploy: host + bind name + (optional) registry publish ──────────────
+      - name: Deploy to Summit
+        env:
+          MNEMONIC: ${{ secrets.MNEMONIC }}
+          # Operator opt-out of the synced CLI's builder-identity gate (headless 5Fk8).
+          PLAYGROUND_SKIP_IDENTITY_GATE: "1"
+          # The Apps-grid publish (--playground -> registry.publishDev) reverts
+          # on-chain since the registry identity-gate / v17 rollout, so a
+          # workflow_dispatch with publish=true now forces it back on for testing.
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true && 'yes' || 'no' }}
+        run: |
+          set -euo pipefail
+          # Default HOST-ONLY: refresh the .dot content; the app stays listed from
+          # its prior publish. Re-enable the grid publish (set publish=true via
+          # workflow_dispatch) once the registry publishDev path is restored.
+          PUBLISH_FLAGS="--yes"
+          if [ "$PUBLISH" = "yes" ]; then
+            PUBLISH_FLAGS="--playground --moddable --tag $PLAYGROUND_TAG"
+          fi
+          "$RUNNER_TEMP/playground" deploy \
+            --env summit \
+            --signer dev --suri "$MNEMONIC" \
+            --domain "$DOMAIN" \
+            --buildDir dist --no-build \
+            --no-contracts \
+            $PUBLISH_FLAGS

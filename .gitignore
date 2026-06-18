@@ -1,0 +1,29 @@
+node_modules/
+dist/
+target/
+.cdm/
+Cargo.lock
+package-lock.json
+
+# Secrets — never publish a stray .env (.env.local does NOT cover a bare .env)
+.env*
+!.env.example
+
+# OS / editor cruft
+.DS_Store
+
+# Per-developer AI session state (keep CLAUDE.md — that's intentional team config)
+.claude/sessions/
+.claude/cache/
+.claude/settings.local.json
+# Tutorial progress marker — written by the AI assistant to remember which level the
+# developer is on across sessions (deploys happen outside the session, so it can't be
+# inferred from code alone). Per-developer; must never be committed into a deploy.
+.tutorial-progress.json
+
+# @parity/product-sdk skills — fetched by ./setup.sh into .claude/skills/ (kept
+# fresh, never stale), so the whole dir is ignored. The tutorial's own level
+# guides are committed separately under docs/levels/, not here.
+.claude/skills/
+.dot-mod-setup.log
+.dot-mod-source.log

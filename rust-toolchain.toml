@@ -1,0 +1,10 @@
+# Pre-pins the Rust toolchain for PVM / pallet-revive contract builds.
+#
+# Early levels of this tutorial are frontend-only; the on-chain leaderboard
+# contract is introduced at level 3. This file ships from the start so that when
+# you reach the contract levels, `cargo` / `cdm` build it with a known-good
+# nightly instead of whatever Rust you happen to have installed — keeping builds
+# reproducible. Inert until a contract crate exists. Bump the date as needed.
+[toolchain]
+channel = "nightly-2026-02-01"
+components = ["rust-src"]

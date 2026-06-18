@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "track_id": "rock-paper-scissors",
+  "title": "Rock Paper Scissors",
+  "description": "Progress from a local rock-paper-scissors game to a full on-chain product with leaderboard and multiplayer. Each quest unlocks a new layer of the Polkadot stack. You stay on `main` the whole time — each level builds on top of the previous one in the same working tree.",
+  "quests": [
+    {
+      "id": "level-1",
+      "title": "Local Challenger",
+      "difficulty": 1,
+      "estimated_minutes": 15,
+      "required_tools": ["playground-cli"],
+      "ai_skill_hints": ["docs/levels/level-1-local-challenger.md"],
+      "teaches": [
+        "Bulletin hosting",
+        "DotNS registration",
+        "pg deploy flow (playground CLI)"
+      ],
+      "summary": "Play vs. the computer. Results in local storage only. Mod the UI, tweak theming, or give the computer a personality. No contract changes required.",
+      "acceptance": [
+        "App deployed via `pg deploy` and accessible on `<your-name>.dot` inside Polkadot Desktop",
+        "At least one custom modification (visual or behavioral)"
+      ]
+    },
+    {
+      "id": "level-2",
+      "title": "On-Chain Record",
+      "difficulty": 2,
+      "estimated_minutes": 20,
+      "depends_on": ["level-1"],
+      "required_tools": ["playground-cli"],
+      "ai_skill_hints": ["docs/levels/level-2-on-chain-record.md"],
+      "teaches": [
+        "Bulletin writes",
+        "Content-addressed storage (CID)",
+        "Cross-client persistence via signer identity"
+      ],
+      "summary": "Save game results to Bulletin Chain. Keep the latest CID per account in localStorage (`rps-game-cid:<address>`) so the app can resolve the player's history on reload. In Level 3 this pointer moves on-chain.",
+      "acceptance": [
+        "CIDs are generated and fetchable from the public IPFS gateway",
+        "Latest CID per account is tracked in localStorage under `rps-game-cid:<address>`",
+        "On reload, the app reads the stored CID and rehydrates the profile from Bulletin"
+      ]
+    },
+    {
+      "id": "level-3",
+      "title": "The Leaderboard",
+      "difficulty": 3,
+      "estimated_minutes": 25,
+      "depends_on": ["level-2"],
+      "required_tools": ["playground-cli", "cdm", "rustup"],
+      "ai_skill_hints": ["docs/levels/level-3-leaderboard.md"],
+      "teaches": [
+        "PVM contract deployment via CDM",
+        "On-chain Mapping storage vs off-chain Bulletin storage",
+        "H160 account identity & Revive map_account()",
+        "Public leaderboard pattern (contract = index, Bulletin = storage)"
+      ],
+      "summary": "Deploy a smart contract for indexing. Build a leaderboard connected to account addresses. Scores are attributed to a player's on-chain identity.",
+      "acceptance": [
+        "Contract deployed on Paseo Asset Hub",
+        "Points persist across clients and accounts",
+        "Any player can be inspected via the leaderboard UI"
+      ]
+    },
+    {
+      "id": "level-4",
+      "title": "Multiplayer",
+      "difficulty": 4,
+      "estimated_minutes": 30,
+      "depends_on": ["level-3"],
+      "required_tools": ["playground-cli"],
+      "ai_skill_hints": ["docs/levels/level-4-multiplayer.md"],
+      "teaches": [
+        "Statement Store pub/sub",
+        "Cross-account contract interactions",
+        "Commit-reveal cryptographic protocol",
+        "Link/QR sharing for opponent onboarding"
+      ],
+      "summary": "Challenge another player. P2P game via Statement Store. Create a game, share a challenge link (or QR code), opponent accepts, you play live with commit-reveal anti-cheat.",
+      "acceptance": [
+        "Two different accounts can complete a full best-of-3 match",
+        "Neither player can see the opponent's move before committing their own",
+        "Hash verification catches tampered reveals",
+        "Both players' leaderboard entries update correctly"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+---
+quest: level-4
+title: Multiplayer — AI context
+---
+
+# Context for Claude / AI pair
+
+You are helping a developer complete **Level 4: Multiplayer**.
+
+Read [00-overview.md](00-overview.md) first for the SDK package set and invariants.
+
+## Goal
+
+Two accounts play a real-time best-of-3 over Statement Store using commit-reveal anti-cheat. Results save to Bulletin + leaderboard contract for both players (reuse Level 2 + 3 flows).
+
+## Dependency
+
+`@parity/product-sdk-statement-store` (latest — do not pin). Host mode required —
+same host connection the Level 1 `SignerManager` goes through, inside
+Polkadot Desktop ≥ 0.7.5. The examples below match the current published API
+(constructor config, `connect`/`publish`/`subscribe`/`destroy`,
+`ReceivedStatement.data`); if a newer release changes it, trust the installed
+package types over these notes.
+
+## Connection pattern (current SDK)
+
+```ts
+import { StatementStoreClient } from "@parity/product-sdk-statement-store";
+
+const client = new StatementStoreClient({
+    appName: "rps-game",
+    defaultTtlSeconds: 600,
+});
+
+await client.connect({
+    mode: "host",
+    accountId: [account.address, 42],   // [ss58Address, chainPrefix]
+});
+```
+
+`accountId` is an `[ss58Address, chainPrefix]` tuple — the connected account's
+SS58 address from the Level 1 `SignerManager` (`selectedAccount.address`,
+generic prefix 42 by default). In host mode, statement proof creation is
+delegated to the host, so the account must be the host product account from
+Level 1 — `DevProvider` accounts outside the host can't create proofs.
+
+## Publish / subscribe
+
+```ts
+// Subscribe — receives EVERYONE's statements (including your own publishes).
+client.subscribe<JoinMessage>((statement) => {
+    const msg = statement.data;
+    if (msg.peerId === account.h160Address) return;   // skip self
+    // ... handle opponent message
+});
+
+// Publish — typed by `<T>`; client SCALE-encodes + signs + submits via host.
+await client.publish<JoinMessage>(
+    { type: "join", peerId: account.h160Address, ts: Date.now() },
+    { topic2: roomCode },   // scope to room
+);
+
+// Teardown on unmount / game end
+client.destroy();
+```
+
+## Message kinds within a room (all published with `topic2: roomCode`)
+
+```text
+join    — { type: "join",   peerId, ts }                    — presence announcement
+commit  — { type: "commit", round, peerId, hash, ts }       — SHA-256 of (move + salt)
+reveal  — { type: "reveal", round, peerId, move, salt, ts } — revealed after both commits
+```
+
+The kind/round/peerId live **in the payload**, not in topics — subscribers get
+every statement in the room and dispatch on `statement.data.type`.
+Topic1 (app-level) is derived from `appName: "rps-game"` automatically — you don't set it manually.
+
+## Commit-reveal protocol per round
+
+1. Player picks move → generate `salt = crypto.randomUUID()`
+2. Compute `hash = SHA256(move + salt)`
+3. Publish commit
+4. Wait for opponent's commit
+5. Once both commits received, publish reveal (move + salt)
+6. Verify opponent's reveal: `SHA256(reveal.move + reveal.salt) === storedCommit`
+7. Determine round winner from the two moves
+
+## Common gotchas
+
+- **Host mode required** — public WebSocket endpoints to Bulletin do **not** expose `statement_*` RPC methods. The client routes through the host's native binary protocol (`createStatementStore()` under the hood). Must run inside Polkadot Desktop.
+- **StatementSubmit permission is per-session** — first `publish()` triggers the host prompt; subsequent publishes in the session reuse the grant. If you instantiate the client inside a component, the first publish may show a permission modal — design the UX around that.
+- **Stale closures are the #1 multiplayer bug.** `handleMessage` runs inside a subscribe callback that captures state at subscription time. In the multiplayer component you create for this level, use `useRef` for `myMove`, `mySalt`, `opponentCommit`, `round`, `phase`. Update refs synchronously alongside `setState`.
+- **Skip own messages.** Subscribe receives everyone's statements including your own. Filter on `statement.data.peerId === account.h160Address`.
+- **Deduplication.** Subscribe may replay a statement during reconnect or poll. The client dedups internally, but you can also dedup by `{type, round, peerId, timestamp}` for safety.
+- **Phase machine:** `connecting → pick → waiting-commit → waiting-reveal → round-result → (pick | game-over)`. Transitions must be atomic; never allow two reveals for the same round.
+- **Hash mismatch = abort.** If opponent's SHA256 doesn't match their earlier commit, don't process the round — treat as cheat attempt.
+- **After match ends, save once.** Reuse the Level 2 `uploadToBulletin` + Level 3 `lb.updateResult.tx(...)` flow. Both players save independently to their own Bulletin CID + contract entry. Both must already have called `ensureContractAccountMapped` (Level 3) — if a player is first-time, expect a one-time `Revive.map_account()` signature prompt before the leaderboard tx.
+- **Signing is the Level 1 signer's job.** Statement proofs are created by the host in host mode, and any follow-up txs use `account.getSigner()` from `SignerManager` — never build a signer by hand. If you see `PJS does not support this signed-extension: AsPgas`, the tx bypassed the host product-account flow.
+
+## Channel store helper (if used)
+
+For per-room key-value state (e.g., scoreboard) the repo can use `ChannelStore`:
+
+```ts
+import { StatementStoreClient, ChannelStore } from "@parity/product-sdk-statement-store";
+
+const channels = new ChannelStore<ScoreboardEntry>(client, { topic2: roomCode });
+await channels.write("score", { p1: 2, p2: 1 });
+channels.subscribe("score", (value) => { /* re-render */ });
+```
+
+Skip if you don't need it — the raw `publish` / `subscribe` flow above is enough for commit-reveal.
+
+## Acceptance check
+
+- Two accounts in two Polkadot Desktop windows can complete a full best-of-3
+- Watch the console: neither side should see the opponent's move emoji before their own commit is published
+- Intentionally break the reveal (edit `move` in devtools before publish) → other side detects hash mismatch
+- Both leaderboards update with correct +/- points after the match
+- New player on either side: see one `Revive.map_account()` prompt followed by the contract `register()` + `update_result()` txs
+
+## Do NOT
+
+- Don't go lower-level than `@parity/product-sdk-statement-store` (e.g. `@novasamatech/host-api-wrapper`'s raw statement store) — the client gives you typed publish/subscribe, host-transport routing, and dedup.
+- Don't connect with `mode: "local"` — local mode hits the public WS endpoint which doesn't serve `statement_*` methods. Always `mode: "host"`.
+- Don't hardcode room codes — use a 6-char random generator with a confusable-free alphabet (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`). Add a `generateRoomCode()` helper to `utils.ts`.
+- Don't share one `StatementStoreClient` instance across rooms — `destroy()` it when the room ends and create a new one for the next match. Subscriptions are scoped to the client.

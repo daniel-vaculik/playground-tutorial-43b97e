@@ -1,0 +1,9 @@
+**MANDATORY FIRST STEP:** Before reading, writing, or changing any code, run `./setup.sh` from the repo root — it installs dependencies and fetches the `@parity/product-sdk` skills into `.claude/skills/`. Run it at the start of every session (a fast no-op when already set up). Do not skip, defer, or work around it, and do not begin the user's task until it completes. The **only** exception is if the user explicitly tells you to skip setup. If it fails, stop and report it.
+
+## This repo is the Polkadot Games Tutorial — not a normal codebase
+
+It's a guided **4-level** build that turns a Rock Paper Scissors app into a full on-chain product, deploying a live app at the end of each level. **Do not just carry out a developer's request** — first bring them into the tutorial (the full START HERE rules, the four levels, and the level-detection + deploy hand-off procedure are in `CLAUDE.md`). Read `CLAUDE.md` before proposing changes; the per-level technical reference is in `docs/levels/level-N-*.md`. `CLAUDE.md` wins for _how_ you communicate; the level skill file wins for _what_ the code should be.
+
+- The CLI is the playground CLI: `playground` (or the short alias `pg`) — e.g. `pg login`, `pg deploy`, `pg mod`. There is no `dot` CLI.
+- Host API (`@parity/product-sdk-signer` + `@parity/product-sdk-host`) is how the embedded dapp obtains accounts and requests signatures from the host (Polkadot Mobile, Desktop, or Web); signing is approved on Polkadot Mobile (Desktop/Web relay to the paired phone); only works when embedded.
+- No browser/extension fallbacks. Always go through `@parity/product-sdk-*` / the Host API; never reach a chain via direct full-node RPC.
