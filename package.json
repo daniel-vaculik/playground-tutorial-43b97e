@@ -14,6 +14,7 @@
     "@novasamatech/host-api-wrapper": "^0.8.6",
     "@parity/product-sdk-host": "^0.8.0",
     "@parity/product-sdk-signer": "^0.6.3",
+    "@parity/product-sdk-cloud-storage": "latest",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

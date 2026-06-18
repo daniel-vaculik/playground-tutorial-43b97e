@@ -5,6 +5,8 @@ import {
     DevProvider,
     type SignerState,
 } from "@parity/product-sdk-signer";
+import { isInsideContainerSync } from "@parity/product-sdk-host";
+import { CloudStorageClient, createLazySigner } from "@parity/product-sdk-cloud-storage";
 import type { Move, RoundResult, PlayerData, GameData } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -65,8 +67,21 @@ export function randomMove(): Move {
 // ---------------------------------------------------------------------------
 
 const STORAGE_PREFIX = "rps-game:";
+const CID_KEY = (address: string) => `rps-game-cid:${address}`;
 
-export function loadPlayerData(address: string): PlayerData {
+let cloudStorageClient: CloudStorageClient | null = null;
+
+async function getCloudStorageClient(): Promise<CloudStorageClient> {
+    if (!cloudStorageClient) {
+        cloudStorageClient = await CloudStorageClient.create({
+            environment: "paseo",
+            signer: createLazySigner(() => signerManager.getSigner()),
+        });
+    }
+    return cloudStorageClient;
+}
+
+function loadPlayerDataFromLocal(address: string): PlayerData {
     try {
         const raw = localStorage.getItem(STORAGE_PREFIX + address);
         if (raw) return JSON.parse(raw);
@@ -78,12 +93,28 @@ export function loadPlayerData(address: string): PlayerData {
     };
 }
 
+export async function loadPlayerData(address: string): Promise<PlayerData> {
+    if (isInsideContainerSync()) {
+        const cid = localStorage.getItem(CID_KEY(address));
+        if (cid) {
+            try {
+                const client = await getCloudStorageClient();
+                const bytes = await client.fetchBytes(cid);
+                return JSON.parse(new TextDecoder().decode(bytes));
+            } catch (error) {
+                console.warn("Bulletin load failed, falling back to localStorage", error);
+            }
+        }
+    }
+    return loadPlayerDataFromLocal(address);
+}
+
 export function savePlayerData(data: PlayerData) {
     localStorage.setItem(STORAGE_PREFIX + data.player, JSON.stringify(data));
 }
 
-export function appendGame(address: string, game: Omit<GameData, "id">): PlayerData {
-    const data = loadPlayerData(address);
+export async function appendGame(address: string, game: Omit<GameData, "id">): Promise<PlayerData> {
+    const data = await loadPlayerData(address);
     const fullGame: GameData = { ...game, id: data.games.length + 1 };
     data.games.push(fullGame);
     data.totalGames++;
@@ -92,5 +123,25 @@ export function appendGame(address: string, game: Omit<GameData, "id">): PlayerD
     else data.draws++;
     data.points += game.pointsChange;
     savePlayerData(data);
+
+    if (isInsideContainerSync()) {
+        try {
+            const client = await getCloudStorageClient();
+            const bytes = new TextEncoder().encode(JSON.stringify(data));
+            const result = await client.store(bytes).send();
+            if (result.cid) {
+                localStorage.setItem(CID_KEY(address), result.cid.toString());
+            } else {
+                console.warn("Bulletin upload returned no CID");
+            }
+        } catch (error) {
+            console.warn("Bulletin upload failed", error);
+        }
+    }
+
     return data;
+}
+
+export function getBulletinCid(address: string): string | null {
+    return localStorage.getItem(CID_KEY(address));
 }

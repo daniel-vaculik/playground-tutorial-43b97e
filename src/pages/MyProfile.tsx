@@ -12,7 +12,11 @@ export default function MyProfile({ account, refreshKey }: {
     const [expanded, setExpanded] = useState(false);
 
     useEffect(() => {
-        setData(loadPlayerData(account.address));
+        let mounted = true;
+        loadPlayerData(account.address).then(data => {
+            if (mounted) setData(data);
+        });
+        return () => { mounted = false; };
     }, [account.address, refreshKey]);
 
     if (!data || data.totalGames === 0) {

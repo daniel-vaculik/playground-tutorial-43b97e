@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Move, Round, RoundResult } from "../types.ts";
 import {
     determineWinner, pointsForResult, randomMove,
-    appendGame,
+    appendGame, getBulletinCid,
 } from "../utils.ts";
 
 const MOVE_EMOJI: Record<Move, string> = { rock: "🪨", paper: "📄", scissors: "\u2702\uFE0F" };
@@ -17,6 +17,12 @@ export default function SoloGame({ account, onDone }: {
     const [currentRound, setCurrentRound] = useState<Round | null>(null);
     const [gameOver, setGameOver] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [cid, setCid] = useState<string | null>(null);
+
+    useEffect(() => {
+        setCid(getBulletinCid(account.address));
+    }, [account.address]);
 
     const playerWins = rounds.filter(r => r.result === "win").length;
     const computerWins = rounds.filter(r => r.result === "loss").length;
@@ -45,16 +51,19 @@ export default function SoloGame({ account, onDone }: {
 
             if (w >= needed || l >= needed || newRounds.length >= BEST_OF) {
                 setGameOver(true);
-                // Auto-save to localStorage
+                // Auto-save to local storage and Bulletin when available
                 const finalResult: RoundResult = w > l ? "win" : l > w ? "loss" : "draw";
                 const finalPts = pointsForResult(finalResult);
+                setSaving(true);
                 appendGame(account.address, {
                     rounds: newRounds,
                     result: finalResult,
                     pointsChange: finalPts,
                     timestamp: Math.floor(Date.now() / 1000),
-                });
-                setSaved(true);
+                }).then(() => {
+                    setSaved(true);
+                    setCid(getBulletinCid(account.address));
+                }).finally(() => setSaving(false));
             }
         }, 1500);
     };
@@ -113,7 +122,25 @@ export default function SoloGame({ account, onDone }: {
                         ))}
                     </div>
 
-                    {saved && <div className="status" style={{ color: "var(--success)" }}>Saved to local storage</div>}
+                    {saving && <div className="status" style={{ color: "var(--accent)" }}>Saving to Bulletin...</div>}
+                    {!saving && saved && (
+                        <>
+                            {cid ? (
+                                <div className="status" style={{ marginTop: 8 }}>
+                                    <a
+                                        href={`https://paseo-bulletin-next-ipfs.polkadot.io/ipfs/${cid}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: "var(--success)", textDecoration: "underline" }}
+                                    >
+                                        Saved — view Bulletin CID
+                                    </a>
+                                </div>
+                            ) : (
+                                <div className="status" style={{ color: "var(--success)" }}>Saved</div>
+                            )}
+                        </>
+                    )}
 
                     <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                         <button className="btn btn-primary" onClick={onDone}>
