@@ -7,9 +7,16 @@ edition = "2021"
 abi-gen = ["pvm-contract-sdk/abi-gen"]
 
 [package.metadata.cdm]
-package = "@rps/leaderboard"
+package = "@best/gameever"
 
 [dependencies]
-pvm-contract-sdk = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", features = ["alloc"] }
-polkavm-derive = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", package = "polkavm-derive" }
-picoalloc = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", package = "picoalloc" }
+pvm-contract-sdk = { workspace = true }
+polkavm-derive = { workspace = true }
+picoalloc = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[[bin]]
+name = "bestnameever"
+path = "lib.rs"

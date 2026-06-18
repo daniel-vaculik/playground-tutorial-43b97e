@@ -2,6 +2,6 @@
 members = ["contracts/leaderboard"]
 
 [workspace.dependencies]
-pvm-contract-sdk = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", features = ["alloc"] }
-polkavm-derive = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", package = "polkavm-derive" }
-picoalloc = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "main", package = "picoalloc" }
+pvm-contract-sdk = { git = "https://github.com/paritytech/cargo-pvm-contract", rev = "90f3582a999ee843f79c56378392cfae3c05f0f3", features = ["alloc"] }
+polkavm-derive = "0.31"
+picoalloc = "5.2"

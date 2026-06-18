@@ -80,7 +80,7 @@ export function randomMove(): Move {
 const STORAGE_PREFIX = "rps-game:";
 const CID_KEY = (address: string) => `rps-game-cid:${address}`;
 
-const CONTRACT_PACKAGE = "@rps/leaderboard";
+const CONTRACT_PACKAGE = "@best/gameever";
 const CONTRACT_LIBRARIES = [CONTRACT_PACKAGE];
 
 let cloudStorageClient: CloudStorageClient | null = null;
